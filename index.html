@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Your Valentine's Prize! 🎫</title>
+    <style>
+        :root {
+            --pink-light: #ffdeeb;
+            --pink-dark: #ff4d6d;
+            --gold-gradient: linear-gradient(135deg, #d4af37 0%, #f9f295 45%, #b38728 70%, #f9f295 100%);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--pink-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            touch-action: none; /* Prevents scrolling while scratching */
+        }
+
+        .ticket-container {
+            position: relative;
+            width: 320px;
+            height: 450px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            text-align: center;
+            overflow: hidden;
+            border: 8px solid white;
+        }
+
+        /* --- THE "PRIZE" UNDERNEATH --- */
+        .reveal-content {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            background: #fff;
+        }
+
+        .reveal-content h2 {
+            color: var(--pink-dark);
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .prize-box {
+            margin-top: 20px;
+            padding: 20px;
+            border: 3px dashed var(--pink-dark);
+            border-radius: 10px;
+            background: #fff0f3;
+        }
+
+        .prize-text {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .ticket-footer {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        /* --- THE SCRATCH LAYER --- */
+        #scratch-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair;
+            z-index: 2;
+            transition: opacity 0.5s ease;
+        }
+
+        .instruction {
+            position: absolute;
+            bottom: 30px;
+            z-index: 3;
+            color: #b38728;
+            font-weight: bold;
+            letter-spacing: 1px;
+            pointer-events: none;
+            width: 100%;
+            text-align: center;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ticket-container">
+        <div class="reveal-content">
+            <p>CONGRATULATIONS!</p>
+            <h2>You Won My Heart</h2>
+            <div class="prize-box">
+                <div class="prize-text">1x Fancy Dinner Date 🍷</div>
+            </div>
+            <p class="ticket-footer">Valid for: The Rest of Our Lives<br>No. 014022024</p>
+        </div>
+
+        <canvas id="scratch-canvas"></canvas>
+        <div class="instruction" id="hint">SCRATCH HERE ✨</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('scratch-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.querySelector('.ticket-container');
+        const hint = document.getElementById('hint');
+
+        let isDrawing = false;
+        let lastPoint = null;
+
+        // Initialize Canvas Size
+        function init() {
+            canvas.width = container.offsetWidth;
+            canvas.height = container.offsetHeight;
+
+            // Create Gold Texture
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#d4af37');
+            gradient.addColorStop(0.2, '#f9f295');
+            gradient.addColorStop(0.5, '#b38728');
+            gradient.addColorStop(1, '#f9f295');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Add some "noise" to make it look like foil
+            for (let i = 0; i < 500; i++) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.2})`;
+                ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
+            }
+        }
+
+        // Scratch Logic
+        function getDistance(p1, p2) {
+            return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+        }
+
+        function getAngle(p1, p2) {
+            return Math.atan2(p2.x - p1.x, p2.y - p1.y);
+        }
+
+        function scratch(e) {
+            if (!isDrawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            const currentPoint = { x, y };
+
+            // "destination-out" makes the brush act as an eraser
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.lineWidth = 40; // Size of scratch
+
+            if (lastPoint) {
+                ctx.beginPath();
+                ctx.moveTo(lastPoint.x, lastPoint.y);
+                ctx.lineTo(currentPoint.x, currentPoint.y);
+                ctx.stroke();
+            }
+
+            lastPoint = currentPoint;
+            checkScratchPercentage();
+        }
+
+        // Check how much has been scratched
+        function checkScratchPercentage() {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            let transparentPixels = 0;
+
+            for (let i = 0; i < pixels.length; i += 4) {
+                if (pixels[i + 3] < 128) transparentPixels++;
+            }
+
+            const percentage = (transparentPixels / (pixels.length / 4)) * 100;
+
+            if (percentage > 45) { // If 45% is scratched, reveal all
+                canvas.style.opacity = '0';
+                hint.style.opacity = '0';
+                setTimeout(() => canvas.remove(), 500);
+            }
+        }
+
+        // Event Listeners
+        canvas.addEventListener('mousedown', (e) => { 
+            isDrawing = true; 
+            lastPoint = null; 
+            hint.style.display = 'none';
+        });
+        
+        canvas.addEventListener('touchstart', (e) => { 
+            isDrawing = true; 
+            lastPoint = null; 
+            hint.style.display = 'none';
+        });
+
+        window.addEventListener('mousemove', scratch);
+        window.addEventListener('touchmove', scratch);
+
+        window.addEventListener('mouseup', () => isDrawing = false);
+        window.addEventListener('touchend', () => isDrawing = false);
+
+        init();
+    </script>
+</body>
+</html>
